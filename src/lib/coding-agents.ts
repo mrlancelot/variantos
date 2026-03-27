@@ -27,7 +27,13 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
 
     const proc = spawn(
       "claude",
-      ["-p", prompt, "--output-format", "json", "--max-turns", "15"],
+      [
+        "-p", prompt,
+        "--output-format", "json",
+        "--max-turns", "15",
+        "--dangerously-skip-permissions",
+        "--allowedTools", "Read", "Write", "Edit", "Bash", "Glob", "Grep",
+      ],
       {
         cwd,
         stdio: "pipe",
@@ -105,11 +111,15 @@ export function runCodex(
 
     const prompt = `Fix this issue in the codebase: ${issueDescription}. Make minimal, targeted changes. Do not refactor unrelated code.`;
 
-    const proc = spawn("codex", ["exec", "--full-auto", prompt], {
-      cwd,
-      stdio: "pipe",
-      env: { ...process.env },
-    });
+    const proc = spawn(
+      "codex",
+      ["exec", "--full-auto", "--sandbox", "workspace-write", prompt],
+      {
+        cwd,
+        stdio: "pipe",
+        env: { ...process.env },
+      }
+    );
 
     let stdout = "";
     let stderr = "";

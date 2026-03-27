@@ -92,7 +92,7 @@ export async function getDiff(
   return new Promise((resolve) => {
     const proc = spawn(
       "diff",
-      ["-rqu", "--exclude=node_modules", "--exclude=.git", "--exclude=.next", originalPath, fixedPath],
+      ["-ru", "--exclude=node_modules", "--exclude=.git", "--exclude=.next", "--exclude=bun.lock", "--exclude=dist", originalPath, fixedPath],
       { stdio: "pipe" }
     );
     let output = "";
