@@ -10,7 +10,7 @@ const IssueSchema = z.object({
       description: z.string(),
       severity: z.enum(["high", "medium", "low"]),
       stepsToReproduce: z.string(),
-      element: z.string().optional(),
+      element: z.string().nullable().optional(),
     })
   ),
 });

@@ -185,7 +185,7 @@ export async function cleanup(sessionId: string): Promise<void> {
 
 function exec(cmd: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { cwd, stdio: "pipe" });
+    const proc = spawn(cmd, args, { cwd, stdio: "pipe", shell: true, env: { ...process.env } });
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (d) => (stdout += d.toString()));

@@ -4,7 +4,7 @@ export interface Issue {
   description: string;
   severity: "high" | "medium" | "low";
   stepsToReproduce: string;
-  element?: string;
+  element?: string | null;
 }
 
 export interface AgentResult {
