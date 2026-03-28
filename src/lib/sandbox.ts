@@ -77,17 +77,27 @@ export function startStaticServer(
   projectPath: string,
   port: number
 ): ChildProcess {
-  // Serve the built dist/ folder with a simple static server
+  const isVite = existsSync(path.join(projectPath, "vite.config.ts")) ||
+    existsSync(path.join(projectPath, "vite.config.js"));
+
+  if (isVite) {
+    // Use vite preview for built Vite projects — most reliable
+    const proc = spawn("npx", ["vite", "preview", "--port", String(port), "--host", "--strictPort"], {
+      cwd: projectPath,
+      stdio: "pipe",
+      env: { ...process.env },
+    });
+    return proc;
+  }
+
+  // Fallback: python3 simple HTTP server
   const distPath = path.join(projectPath, "dist");
   const servePath = existsSync(distPath) ? distPath : projectPath;
-
-  // Use `serve` for static files — works reliably through ngrok
-  const proc = spawn("bunx", ["serve", servePath, "-l", String(port), "--no-clipboard", "-s"], {
-    cwd: projectPath,
+  const proc = spawn("python3", ["-m", "http.server", String(port), "--bind", "0.0.0.0"], {
+    cwd: servePath,
     stdio: "pipe",
     env: { ...process.env },
   });
-
   return proc;
 }
 
