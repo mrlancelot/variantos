@@ -58,7 +58,7 @@ export async function* runScan(
         });
 
         yield createEvent("browser-exploring", { url: appUrl });
-        issues = await findIssues(appUrl, goal);
+        issues = await findIssues(browserSession.sessionId, appUrl, goal);
       } catch (err) {
         issues = getHardcodedIssues();
         yield createEvent("browser-exploring", {

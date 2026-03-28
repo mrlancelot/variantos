@@ -21,23 +21,24 @@ function getClient() {
   });
 }
 
+// Create a session first → get liveUrl → then pass sessionId to run()
+// This way the liveUrl iframe shows the actual browser being used for the task
 export async function createBrowserSession(): Promise<{
-  browserSessionId: string;
+  sessionId: string;
   liveUrl: string;
 }> {
   const client = getClient();
-  // browsers.create() returns a BrowserSessionView which has liveUrl
-  const browser = await client.browsers.create();
+  const session = await client.sessions.create();
   return {
-    browserSessionId: browser.id,
-    liveUrl: browser.liveUrl || "",
+    sessionId: session.id,
+    liveUrl: session.liveUrl || "",
   };
 }
 
 export async function findIssues(
+  sessionId: string,
   appUrl: string,
-  goal?: string,
-  sessionId?: string
+  goal?: string
 ): Promise<Issue[]> {
   const client = getClient();
 
@@ -55,7 +56,7 @@ Report all bugs, UX issues, and accessibility problems you find. Be specific abo
   const result = await client.run(taskPrompt, {
     schema: IssueSchema,
     startUrl: appUrl,
-    ...(sessionId ? { sessionId } : {}),
+    sessionId,
   });
 
   const issues: Issue[] = (result.output?.issues || []).map(
