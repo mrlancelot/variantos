@@ -18,17 +18,10 @@ export default function App() {
   const [cart, setCart] = useState([])
   const [page, setPage] = useState('shop')
 
-  // BUG: This function is named addToCart but the button calls addItemToCart (undefined)
+  // BUG: addToCart does nothing — empty function body, cart never updates
   const addToCart = (product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id)
-      if (existing) {
-        return prev.map(item =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        )
-      }
-      return [...prev, { ...product, quantity: 1 }]
-    })
+    // TODO: implement add to cart
+    console.log('Add to cart clicked for', product.name)
   }
 
   const removeFromCart = (productId) => {
@@ -62,7 +55,7 @@ export default function App() {
       </header>
 
       {/* BUG: No way to filter or search products */}
-      {page === 'shop' && <ProductGrid products={products} onAddToCart={addItemToCart} />}
+      {page === 'shop' && <ProductGrid products={products} onAddToCart={addToCart} />}
       {page === 'cart' && <Cart items={cart} onRemove={removeFromCart} />}
       {page === 'checkout' && <Checkout cart={cart} />}
     </div>
