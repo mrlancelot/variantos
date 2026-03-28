@@ -55,6 +55,7 @@ export async function* runScan(
         yield createEvent("browser-exploring", { url: appUrl });
         issues = await findIssues(browserSession.sessionId, appUrl, goal);
       } catch (err) {
+        console.error("[variantOS] Browser Use findIssues failed:", err);
         issues = getHardcodedIssues();
         yield createEvent("browser-exploring", {
           url: appUrl,

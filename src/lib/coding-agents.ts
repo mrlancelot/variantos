@@ -187,6 +187,7 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
         prompt,
         "--output-format",
         "stream-json",
+        "--verbose",
         "--max-turns",
         "15",
         "--dangerously-skip-permissions",
@@ -305,7 +306,7 @@ export function runCodex(
 
     const proc = spawn(
       "codex",
-      ["exec", "--json", "--full-auto", "--sandbox", "workspace-write", prompt],
+      ["exec", "--json", "--full-auto", "--sandbox", "workspace-write", "--skip-git-repo-check", prompt],
       {
         cwd,
         stdio: "pipe",
