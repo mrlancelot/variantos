@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
         emit("apply-committing", { ...result });
 
-        await buildAndDeploy(repoUrl, sessionId, emit);
+        await buildAndDeploy(repoUrl, sessionId, issueId, emit);
         await pollDeployment(repoUrl, emit);
 
         emit("verify-started", {});

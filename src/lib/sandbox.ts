@@ -212,8 +212,11 @@ export async function applyFixToRepo(params: {
   const { sessionId, issueId, agent, repoUrl, method, issueDescription, filesChanged, emit } = params;
 
   const fixDir = path.join(getSessionDir(sessionId), `${agent}-${issueId.slice(0, 8)}`);
-  const workDir = path.join(getSessionDir(sessionId), "apply-work");
-  await mkdir(workDir, { recursive: true });
+  const workDir = path.join(getSessionDir(sessionId), `apply-${issueId.slice(0, 8)}`);
+
+  if (existsSync(workDir)) {
+    await rm(workDir, { recursive: true, force: true });
+  }
 
   emit("apply-copying", { agent, issueId });
 
@@ -253,9 +256,10 @@ export async function applyFixToRepo(params: {
 export async function buildAndDeploy(
   repoUrl: string,
   sessionId: string,
+  issueId: string,
   emit: EventEmitter
 ): Promise<void> {
-  const workDir = path.join(getSessionDir(sessionId), "apply-work");
+  const workDir = path.join(getSessionDir(sessionId), `apply-${issueId.slice(0, 8)}`);
 
   emit("apply-building", {});
   await exec("bun", ["install"], workDir);
