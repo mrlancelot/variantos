@@ -4,7 +4,7 @@ import { encodeSSE } from "@/lib/events";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { repoUrl, goal } = body;
+  const { repoUrl, goal, liveUrl } = body;
 
   if (!repoUrl) {
     return new Response(JSON.stringify({ error: "repoUrl is required" }), {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       const encoder = new TextEncoder();
 
       try {
-        for await (const event of runScan(repoUrl, goal)) {
+        for await (const event of runScan(repoUrl, goal, liveUrl)) {
           const sseData = encodeSSE(event);
           controller.enqueue(encoder.encode(sseData));
         }

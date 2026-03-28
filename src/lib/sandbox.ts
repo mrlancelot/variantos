@@ -170,45 +170,10 @@ export async function getChangedFiles(
 }
 
 export async function startTunnel(port: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("ngrok", ["http", String(port), "--log=stdout"], {
-      stdio: "pipe",
-    });
-
-    let resolved = false;
-    proc.stdout.on("data", (data) => {
-      const line = data.toString();
-      const match = line.match(/url=(https:\/\/[^\s]+)/);
-      if (match && !resolved) {
-        resolved = true;
-        resolve(match[1]);
-      }
-    });
-
-    // Also try the ngrok API as fallback
-    setTimeout(async () => {
-      if (resolved) return;
-      try {
-        const res = await fetch("http://127.0.0.1:4040/api/tunnels");
-        const json = await res.json();
-        const tunnel = json.tunnels?.[0]?.public_url;
-        if (tunnel) {
-          resolved = true;
-          resolve(tunnel);
-        }
-      } catch {
-        // ngrok API not ready yet
-      }
-    }, 3000);
-
-    setTimeout(() => {
-      if (!resolved) reject(new Error("ngrok tunnel timeout"));
-    }, 15000);
-
-    proc.on("error", (err) => {
-      if (!resolved) reject(err);
-    });
-  });
+  // Use localtunnel — no interstitial warning page like ngrok free tier
+  const localtunnel = (await import("localtunnel")).default;
+  const tunnel = await localtunnel({ port });
+  return tunnel.url;
 }
 
 export async function cleanup(sessionId: string): Promise<void> {

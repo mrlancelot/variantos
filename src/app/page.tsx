@@ -9,12 +9,12 @@ export default function HomePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (repoUrl: string, goal: string) => {
+  const handleSubmit = (repoUrl: string, goal: string, liveUrl: string) => {
     setIsLoading(true);
     const sessionId = uuidv4();
     sessionStorage.setItem(
       `scan-${sessionId}`,
-      JSON.stringify({ repoUrl, goal })
+      JSON.stringify({ repoUrl, goal, liveUrl })
     );
     router.push(`/scan/${sessionId}`);
   };

@@ -4,11 +4,8 @@ import { createEvent } from "./events";
 import {
   cloneRepo,
   installDeps,
-  buildProject,
-  startStaticServer,
   forkSandbox,
   startDevServer,
-  startTunnel,
 } from "./sandbox";
 import {
   createBrowserSession,
@@ -26,54 +23,33 @@ const childProcesses: ChildProcess[] = [];
 
 export async function* runScan(
   repoUrl: string,
-  goal?: string
+  goal?: string,
+  liveUrl?: string
 ): AsyncGenerator<ScanEvent> {
   const sessionId = uuidv4();
   let originalPath = "";
   let portCounter = BASE_PORT;
 
   try {
-    // Step 1: Clone repo
+    // Step 1: Clone repo (always needed for agents to fix code)
     yield createEvent("cloning", { repoUrl, sessionId });
     originalPath = await cloneRepo(repoUrl, sessionId);
     yield createEvent("installing", { sessionId });
 
     // Step 2: Install dependencies
     await installDeps(originalPath);
-
-    // Step 3: Build and serve static files (works reliably through ngrok)
-    const originalPort = portCounter++;
-    await buildProject(originalPath);
-    const staticServer = startStaticServer(originalPath, originalPort);
-    childProcesses.push(staticServer);
-
-    // Wait for server to be ready
-    await waitForServer(originalPort);
     yield createEvent("server-started", {
-      port: originalPort,
-      url: `http://localhost:${originalPort}`,
+      url: liveUrl || `local clone ready`,
     });
 
-    // Step 4: Start tunnel for Browser Use
-    let publicUrl = "";
-    let useBrowserUse = true;
-    try {
-      publicUrl = await startTunnel(originalPort);
-      yield createEvent("tunnel-ready", { publicUrl });
-    } catch {
-      // Tunnel failed, will use hardcoded issues
-      useBrowserUse = false;
-      yield createEvent("tunnel-ready", {
-        publicUrl: `http://localhost:${originalPort}`,
-        fallback: true,
-      });
-    }
-
-    // Step 5: Browser agent explores the app
+    // Step 3: Browser agent explores the app
+    // If liveUrl is provided, Browser Use hits it directly (no tunnel needed)
+    // Otherwise, fall back to hardcoded issues
+    const appUrl = liveUrl || "";
     let issues: Issue[] = [];
     let browserLiveUrl = "";
 
-    if (useBrowserUse && process.env.BROWSER_USE_API_KEY) {
+    if (appUrl && process.env.BROWSER_USE_API_KEY) {
       try {
         const browserSession = await createBrowserSession();
         browserLiveUrl = browserSession.liveUrl;
@@ -81,22 +57,19 @@ export async function* runScan(
           liveUrl: browserLiveUrl,
         });
 
-        yield createEvent("browser-exploring", { url: publicUrl });
-        issues = await findIssues(publicUrl, goal);
+        yield createEvent("browser-exploring", { url: appUrl });
+        issues = await findIssues(appUrl, goal);
       } catch (err) {
-        // Fall back to hardcoded issues
         issues = getHardcodedIssues();
         yield createEvent("browser-exploring", {
-          url: `http://localhost:${originalPort}`,
+          url: appUrl,
           fallback: true,
+          error: err instanceof Error ? err.message : "Browser Use failed",
         });
       }
     } else {
       issues = getHardcodedIssues();
-      yield createEvent("browser-exploring", {
-        url: `http://localhost:${originalPort}`,
-        fallback: true,
-      });
+      yield createEvent("browser-exploring", { fallback: true });
     }
 
     // Emit each issue found
@@ -105,7 +78,7 @@ export async function* runScan(
       yield createEvent("issue-found", { issue });
     }
 
-    // Step 6: For each issue, run both agents in parallel
+    // Step 4: For each issue, run both agents in parallel
     const allResults: { issue: Issue; claude?: AgentResult; codex?: AgentResult }[] = [];
 
     for (const issue of issuesToFix) {
@@ -128,8 +101,7 @@ export async function* runScan(
 
       // Run both agents in parallel
       const progressEmitter = (agent: "claude" | "codex", message: string) => {
-        // Progress is captured but we can't yield from callbacks
-        // Progress events will be sent via the agent-complete event
+        // Progress captured but we can't yield from callbacks
       };
 
       const [claudeResult, codexResult] = await Promise.all([
@@ -170,7 +142,7 @@ export async function* runScan(
       });
     }
 
-    // Step 7: Summary
+    // Step 5: Summary
     const claudeSuccesses = allResults.filter(
       (r) => r.claude?.status === "success"
     ).length;
@@ -206,21 +178,4 @@ export async function* runScan(
       message: err instanceof Error ? err.message : "Unknown error",
     });
   }
-}
-
-async function waitForServer(
-  port: number,
-  maxRetries = 30,
-  intervalMs = 1000
-): Promise<void> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const res = await fetch(`http://localhost:${port}`);
-      if (res.ok || res.status === 404) return;
-    } catch {
-      // Server not ready yet
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  // Proceed anyway — the server might still be starting
 }

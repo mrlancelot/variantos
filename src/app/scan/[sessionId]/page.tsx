@@ -144,14 +144,14 @@ export default function ScanPage() {
       return;
     }
 
-    const { repoUrl, goal } = JSON.parse(stored);
+    const { repoUrl, goal, liveUrl } = JSON.parse(stored);
 
     const startScan = async () => {
       try {
         const res = await fetch("/api/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ repoUrl, goal }),
+          body: JSON.stringify({ repoUrl, goal, liveUrl }),
         });
 
         if (!res.ok || !res.body) {

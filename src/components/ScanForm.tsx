@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface ScanFormProps {
-  onSubmit: (repoUrl: string, goal: string) => void;
+  onSubmit: (repoUrl: string, goal: string, liveUrl: string) => void;
   isLoading: boolean;
 }
 
 export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
   const [repoUrl, setRepoUrl] = useState("");
   const [goal, setGoal] = useState("");
+  const [liveUrl, setLiveUrl] = useState("");
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4">
@@ -23,6 +24,21 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
           placeholder="https://github.com/user/repo"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
+          disabled={isLoading}
+          className="h-12 text-base bg-card border-border"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">
+          Live App URL{" "}
+          <span className="text-muted-foreground/50">
+            (deployed site for Browser Use to test)
+          </span>
+        </label>
+        <Input
+          placeholder="https://user.github.io/repo or any public URL"
+          value={liveUrl}
+          onChange={(e) => setLiveUrl(e.target.value)}
           disabled={isLoading}
           className="h-12 text-base bg-card border-border"
         />
@@ -41,7 +57,7 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
         />
       </div>
       <Button
-        onClick={() => onSubmit(repoUrl, goal)}
+        onClick={() => onSubmit(repoUrl, goal, liveUrl)}
         disabled={!repoUrl || isLoading}
         className="w-full h-12 text-base font-semibold"
         size="lg"

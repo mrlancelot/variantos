@@ -41,4 +41,5 @@ export interface ScanEvent {
 export interface ScanRequest {
   repoUrl: string;
   goal?: string;
+  liveUrl?: string; // Optional: public URL for Browser Use (skips tunnel)
 }
