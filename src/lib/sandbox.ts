@@ -58,11 +58,43 @@ export async function forkSandbox(
   return destPath;
 }
 
+export async function buildProject(projectPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cmd = existsSync(path.join(projectPath, "bun.lockb")) ||
+      existsSync(path.join(projectPath, "bun.lock"))
+      ? "bun" : "npm";
+    const proc = spawn(cmd, ["run", "build"], { cwd: projectPath, stdio: "pipe" });
+    let stderr = "";
+    proc.stderr.on("data", (d) => (stderr += d.toString()));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`build failed: ${stderr}`));
+    });
+  });
+}
+
+export function startStaticServer(
+  projectPath: string,
+  port: number
+): ChildProcess {
+  // Serve the built dist/ folder with a simple static server
+  const distPath = path.join(projectPath, "dist");
+  const servePath = existsSync(distPath) ? distPath : projectPath;
+
+  // Use `serve` for static files — works reliably through ngrok
+  const proc = spawn("bunx", ["serve", servePath, "-l", String(port), "--no-clipboard", "-s"], {
+    cwd: projectPath,
+    stdio: "pipe",
+    env: { ...process.env },
+  });
+
+  return proc;
+}
+
 export function startDevServer(
   projectPath: string,
   port: number
 ): ChildProcess {
-  const pkgJson = path.join(projectPath, "package.json");
   let cmd = "npm";
   let args = ["run", "dev", "--", "--port", String(port)];
 

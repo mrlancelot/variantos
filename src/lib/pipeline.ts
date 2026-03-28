@@ -4,6 +4,8 @@ import { createEvent } from "./events";
 import {
   cloneRepo,
   installDeps,
+  buildProject,
+  startStaticServer,
   forkSandbox,
   startDevServer,
   startTunnel,
@@ -39,10 +41,11 @@ export async function* runScan(
     // Step 2: Install dependencies
     await installDeps(originalPath);
 
-    // Step 3: Start original dev server
+    // Step 3: Build and serve static files (works reliably through ngrok)
     const originalPort = portCounter++;
-    const devServer = startDevServer(originalPath, originalPort);
-    childProcesses.push(devServer);
+    await buildProject(originalPath);
+    const staticServer = startStaticServer(originalPath, originalPort);
+    childProcesses.push(staticServer);
 
     // Wait for server to be ready
     await waitForServer(originalPort);
