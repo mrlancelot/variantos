@@ -1,22 +1,30 @@
 "use client";
 
+import { useState } from "react";
+
 interface BrowserLiveViewProps {
   liveUrl: string | null;
   isExploring: boolean;
 }
 
-export function BrowserLiveView({ liveUrl, isExploring }: BrowserLiveViewProps) {
+export function BrowserLiveView({
+  liveUrl,
+  isExploring,
+}: BrowserLiveViewProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   if (!liveUrl) {
     return (
-      <div className="w-full h-[400px] rounded-lg border border-border bg-card flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
+      <div className="w-full h-[360px] rounded-lg border border-neutral-800 bg-neutral-900/50 flex items-center justify-center">
+        <div className="text-center text-neutral-600">
           {isExploring ? (
-            <div className="space-y-3">
-              <div className="animate-spin inline-block w-8 h-8 border-2 border-muted-foreground border-t-transparent rounded-full" />
-              <p className="text-sm">Browser agent is exploring the app...</p>
+            <div className="space-y-2">
+              <div className="font-mono text-xs animate-pulse">
+                browsing...
+              </div>
             </div>
           ) : (
-            <p className="text-sm">Browser agent will appear here</p>
+            <div className="font-mono text-xs">waiting for browser agent</div>
           )}
         </div>
       </div>
@@ -24,37 +32,50 @@ export function BrowserLiveView({ liveUrl, isExploring }: BrowserLiveViewProps) 
   }
 
   return (
-    <div className="w-full rounded-lg border border-border overflow-hidden">
-      <div className="bg-card px-3 py-2 border-b border-border flex items-center gap-2">
-        <div className="flex gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-500/70" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-          <div className="w-3 h-3 rounded-full bg-green-500/70" />
-        </div>
-        <span className="text-xs text-muted-foreground ml-2 font-mono">
-          Browser Use — Live View
-        </span>
-        {isExploring && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-green-400">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            LIVE
+    <div
+      className={`w-full rounded-lg border border-neutral-800 overflow-hidden ${isFullscreen ? "fixed inset-4 z-50" : ""}`}
+    >
+      <div className="bg-neutral-900 px-3 py-2 border-b border-neutral-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-neutral-500">
+            browser-use
           </span>
-        )}
-        <a
-          href={liveUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Open in new tab
-        </a>
+          {isExploring && (
+            <span className="flex items-center gap-1.5 text-xs text-green-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              live
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <a
+            href={liveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors"
+          >
+            open
+          </a>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="text-xs text-neutral-600 hover:text-neutral-400 transition-colors"
+          >
+            {isFullscreen ? "exit" : "expand"}
+          </button>
+        </div>
       </div>
       <iframe
         src={liveUrl}
-        className="w-full h-[400px] bg-black"
+        className={`w-full bg-neutral-950 ${isFullscreen ? "h-[calc(100%-36px)]" : "h-[360px]"}`}
         allow="clipboard-read; clipboard-write"
         title="Browser Use Live View"
       />
+      {isFullscreen && (
+        <div
+          className="fixed inset-0 bg-black/60 -z-10"
+          onClick={() => setIsFullscreen(false)}
+        />
+      )}
     </div>
   );
 }

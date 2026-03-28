@@ -18,7 +18,6 @@ import { ChildProcess } from "child_process";
 const MAX_ISSUES = 2;
 const BASE_PORT = 3001;
 
-// Track child processes for cleanup
 const childProcesses: ChildProcess[] = [];
 
 export async function* runScan(
@@ -31,7 +30,7 @@ export async function* runScan(
   let portCounter = BASE_PORT;
 
   try {
-    // Step 1: Clone repo (always needed for agents to fix code)
+    // Step 1: Clone repo
     yield createEvent("cloning", { repoUrl, sessionId });
     originalPath = await cloneRepo(repoUrl, sessionId);
     yield createEvent("installing", { sessionId });
@@ -39,22 +38,18 @@ export async function* runScan(
     // Step 2: Install dependencies
     await installDeps(originalPath);
     yield createEvent("server-started", {
-      url: liveUrl || `local clone ready`,
+      url: liveUrl || "local clone ready",
     });
 
     // Step 3: Browser agent explores the app
-    // If liveUrl is provided, Browser Use hits it directly (no tunnel needed)
-    // Otherwise, fall back to hardcoded issues
     const appUrl = liveUrl || "";
     let issues: Issue[] = [];
-    let browserLiveUrl = "";
 
     if (appUrl && process.env.BROWSER_USE_API_KEY) {
       try {
         const browserSession = await createBrowserSession();
-        browserLiveUrl = browserSession.liveUrl;
         yield createEvent("browser-session-created", {
-          liveUrl: browserLiveUrl,
+          liveUrl: browserSession.liveUrl,
         });
 
         yield createEvent("browser-exploring", { url: appUrl });
@@ -72,14 +67,18 @@ export async function* runScan(
       yield createEvent("browser-exploring", { fallback: true });
     }
 
-    // Emit each issue found
+    // Emit issues
     const issuesToFix = issues.slice(0, MAX_ISSUES);
     for (const issue of issuesToFix) {
       yield createEvent("issue-found", { issue });
     }
 
-    // Step 4: For each issue, run both agents in parallel
-    const allResults: { issue: Issue; claude?: AgentResult; codex?: AgentResult }[] = [];
+    // Step 4: For each issue, run both agents with real-time streaming
+    const allResults: {
+      issue: Issue;
+      claude?: AgentResult;
+      codex?: AgentResult;
+    }[] = [];
 
     for (const issue of issuesToFix) {
       yield createEvent("agents-started", { issueId: issue.id, issue });
@@ -87,7 +86,6 @@ export async function* runScan(
       const claudePort = portCounter++;
       const codexPort = portCounter++;
 
-      // Fork sandboxes for both agents
       const claudePath = await forkSandbox(
         originalPath,
         sessionId,
@@ -99,19 +97,23 @@ export async function* runScan(
         `codex-${issue.id.slice(0, 8)}`
       );
 
-      // Run both agents in parallel
-      const progressEmitter = (agent: "claude" | "codex", message: string) => {
-        // Progress captured but we can't yield from callbacks
+      // Event queue — agents push events, generator drains them
+      const eventQueue: ScanEvent[] = [];
+      let agentsDone = false;
+
+      const pushEvent = (event: ScanEvent) => {
+        eventQueue.push(event);
       };
 
-      const [claudeResult, codexResult] = await Promise.all([
+      // Start both agents (non-blocking)
+      const agentsPromise = Promise.all([
         runClaudeCode(
           claudePath,
           originalPath,
           issue.id,
           issue.description,
           claudePort,
-          progressEmitter
+          pushEvent
         ),
         runCodex(
           codexPath,
@@ -119,9 +121,26 @@ export async function* runScan(
           issue.id,
           issue.description,
           codexPort,
-          progressEmitter
+          pushEvent
         ),
-      ]);
+      ]).then((results) => {
+        agentsDone = true;
+        return results;
+      });
+
+      // Poll queue and yield events while agents work
+      while (!agentsDone) {
+        while (eventQueue.length > 0) {
+          yield eventQueue.shift()!;
+        }
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      // Drain remaining events
+      while (eventQueue.length > 0) {
+        yield eventQueue.shift()!;
+      }
+
+      const [claudeResult, codexResult] = await agentsPromise;
 
       // Start preview servers for successful fixes
       if (claudeResult.status === "success") {
@@ -151,10 +170,10 @@ export async function* runScan(
     ).length;
     const claudeAvgTime =
       allResults.reduce((sum, r) => sum + (r.claude?.durationMs || 0), 0) /
-      allResults.length;
+        allResults.length || 0;
     const codexAvgTime =
       allResults.reduce((sum, r) => sum + (r.codex?.durationMs || 0), 0) /
-      allResults.length;
+        allResults.length || 0;
 
     yield createEvent("scan-complete", {
       sessionId,

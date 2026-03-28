@@ -1,7 +1,6 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 import { Issue } from "@/lib/types";
 
 interface IssueCardProps {
@@ -9,44 +8,46 @@ interface IssueCardProps {
   index: number;
 }
 
-const severityColors: Record<string, string> = {
-  high: "bg-red-500/20 text-red-400 border-red-500/30",
-  medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  low: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-};
-
-const typeLabels: Record<string, string> = {
-  bug: "Bug",
-  ux: "UX Issue",
-  accessibility: "A11y",
-  performance: "Perf",
+const severityBorder: Record<string, string> = {
+  high: "border-l-red-500/60",
+  medium: "border-l-yellow-500/60",
+  low: "border-l-blue-500/60",
 };
 
 export function IssueCard({ issue, index }: IssueCardProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <Card className="bg-card border-border animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-muted-foreground">
-            #{index + 1}
-          </span>
-          <Badge
-            variant="outline"
-            className={severityColors[issue.severity] || ""}
-          >
-            {issue.severity}
-          </Badge>
-          <Badge variant="secondary" className="text-xs">
-            {typeLabels[issue.type] || issue.type}
-          </Badge>
-        </div>
-        <p className="text-sm font-medium leading-snug">{issue.description}</p>
-        {issue.element && (
-          <p className="text-xs text-muted-foreground font-mono">
-            Element: {issue.element}
+    <div
+      className={`border-l-2 ${severityBorder[issue.severity]} bg-neutral-900/50 border border-neutral-800 border-l-2 rounded-lg p-4 cursor-pointer hover:bg-neutral-900 transition-colors`}
+      onClick={() => setExpanded(!expanded)}
+      style={{ animationDelay: `${index * 100}ms` }}
+    >
+      <div className="flex items-start gap-3">
+        <span className="font-mono text-xs text-neutral-600 mt-0.5">
+          {index + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs text-neutral-500 uppercase tracking-wider">
+              {issue.severity} {issue.type}
+            </span>
+          </div>
+          <p className={`text-sm text-neutral-300 leading-relaxed ${!expanded ? "line-clamp-2" : ""}`}>
+            {issue.description}
           </p>
-        )}
-      </CardContent>
-    </Card>
+          {expanded && issue.stepsToReproduce && (
+            <div className="mt-3 pt-3 border-t border-neutral-800">
+              <p className="text-xs text-neutral-500 uppercase tracking-wider mb-2">
+                Steps to reproduce
+              </p>
+              <pre className="text-xs text-neutral-400 whitespace-pre-wrap font-mono leading-relaxed">
+                {issue.stepsToReproduce}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

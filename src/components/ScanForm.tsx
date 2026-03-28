@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface ScanFormProps {
   onSubmit: (repoUrl: string, goal: string, liveUrl: string) => void;
@@ -14,63 +12,66 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
   const [goal, setGoal] = useState("");
   const [liveUrl, setLiveUrl] = useState("");
 
+  const isValidUrl = repoUrl.startsWith("https://github.com/");
+
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground">
-          GitHub Repository URL
+    <div className="w-full max-w-lg mx-auto space-y-3">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+          Repository
         </label>
-        <Input
-          placeholder="https://github.com/user/repo"
+        <input
+          placeholder="https://github.com/owner/repo"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
           disabled={isLoading}
-          className="h-12 text-base bg-card border-border"
+          className="w-full h-11 px-3 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors disabled:opacity-40"
         />
+        {repoUrl && !isValidUrl && (
+          <p className="text-xs text-red-400/70">
+            Enter a GitHub URL (https://github.com/...)
+          </p>
+        )}
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground">
-          Live App URL{" "}
-          <span className="text-muted-foreground/50">
-            (deployed site for Browser Use to test)
-          </span>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+          Live URL{" "}
+          <span className="text-neutral-600 normal-case">(deployed app for testing)</span>
         </label>
-        <Input
-          placeholder="https://user.github.io/repo or any public URL"
+        <input
+          placeholder="https://user.github.io/repo"
           value={liveUrl}
           onChange={(e) => setLiveUrl(e.target.value)}
           disabled={isLoading}
-          className="h-12 text-base bg-card border-border"
+          className="w-full h-11 px-3 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors disabled:opacity-40"
         />
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground">
-          Focus Area{" "}
-          <span className="text-muted-foreground/50">(optional)</span>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+          Focus <span className="text-neutral-600 normal-case">(optional)</span>
         </label>
-        <Input
-          placeholder="e.g., test the checkout flow, find accessibility issues..."
+        <input
+          placeholder="e.g., test the checkout flow"
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
           disabled={isLoading}
-          className="h-12 text-base bg-card border-border"
+          className="w-full h-11 px-3 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors disabled:opacity-40"
         />
       </div>
-      <Button
+
+      <button
         onClick={() => onSubmit(repoUrl, goal, liveUrl)}
-        disabled={!repoUrl || isLoading}
-        className="w-full h-12 text-base font-semibold"
-        size="lg"
+        disabled={!isValidUrl || isLoading}
+        className="w-full h-11 text-sm font-medium bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed mt-2"
       >
-        {isLoading ? (
-          <span className="flex items-center gap-2">
-            <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
-            Running Scan...
-          </span>
-        ) : (
-          "Launch Scan"
-        )}
-      </Button>
+        {isLoading ? "Starting..." : "Launch Scan"}
+      </button>
+
+      <p className="text-xs text-neutral-600 text-center pt-1">
+        Usually takes 2-3 minutes
+      </p>
     </div>
   );
 }

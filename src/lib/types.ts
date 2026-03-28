@@ -17,6 +17,14 @@ export interface AgentResult {
   previewPort: number;
 }
 
+export interface AgentActivity {
+  agent: "claude" | "codex";
+  issueId: string;
+  action: "thinking" | "reading" | "editing" | "running" | "done";
+  detail: string;
+  timestamp: number;
+}
+
 export type ScanEventType =
   | "cloning"
   | "installing"

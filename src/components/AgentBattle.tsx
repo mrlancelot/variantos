@@ -1,75 +1,80 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
 import { CodeDiff } from "./CodeDiff";
-import { AgentResult, Issue } from "@/lib/types";
+import { AgentActivityFeed } from "./AgentActivityFeed";
+import { AgentResult, AgentActivity, Issue } from "@/lib/types";
 
 interface AgentBattleProps {
   issue: Issue;
   claude?: AgentResult;
   codex?: AgentResult;
+  claudeActivities: AgentActivity[];
+  codexActivities: AgentActivity[];
   isRunning: boolean;
 }
 
 function AgentColumn({
   result,
   agentName,
-  color,
+  activities,
   isRunning,
 }: {
   result?: AgentResult;
   agentName: string;
-  color: string;
+  activities: AgentActivity[];
   isRunning: boolean;
 }) {
-  const formatTime = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  };
+  const [elapsed, setElapsed] = useState(0);
+  const [startTime] = useState(Date.now());
+
+  useEffect(() => {
+    if (!isRunning && result) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, result, startTime]);
+
+  const displayTime = result
+    ? `${(result.durationMs / 1000).toFixed(1)}s`
+    : `${elapsed}s`;
 
   return (
-    <div className="flex-1 space-y-3">
-      <div className="flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${color}`} />
-        <span className="font-semibold text-sm">{agentName}</span>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium text-white">{agentName}</span>
+        <span className="font-mono text-xs text-neutral-500">
+          {displayTime}
+        </span>
       </div>
 
-      {isRunning && !result && (
-        <div className="space-y-2 p-4 rounded bg-muted/30 border border-border">
-          <div className="flex items-center gap-2">
-            <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
-            <span className="text-sm text-muted-foreground">Working...</span>
-          </div>
-          <div className="h-1.5 bg-muted rounded overflow-hidden">
-            <div className="h-full bg-primary/50 rounded animate-pulse w-2/3" />
-          </div>
-        </div>
+      {/* Activity feed during execution */}
+      {(isRunning || (!result && activities.length > 0)) && (
+        <AgentActivityFeed activities={activities} isRunning={isRunning && !result} />
       )}
 
+      {/* Result */}
       {result && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge
-              variant={result.status === "success" ? "default" : "destructive"}
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-xs font-mono ${result.status === "success" ? "text-green-500" : "text-red-500"}`}
             >
-              {result.status === "success" ? "Fixed" : "Failed"}
-            </Badge>
-            <span className="text-xs text-muted-foreground font-mono">
-              {formatTime(result.durationMs)}
+              {result.status === "success" ? "fixed" : "failed"}
             </span>
             {result.filesChanged.length > 0 && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-neutral-600">
                 {result.filesChanged.length} file
-                {result.filesChanged.length !== 1 ? "s" : ""} changed
+                {result.filesChanged.length !== 1 ? "s" : ""}
               </span>
             )}
           </div>
 
           {result.filesChanged.length > 0 && (
-            <div className="text-xs space-y-0.5">
+            <div className="space-y-0.5">
               {result.filesChanged.map((f, i) => (
-                <div key={i} className="font-mono text-muted-foreground">
+                <div key={i} className="font-mono text-xs text-neutral-500">
                   {f}
                 </div>
               ))}
@@ -77,17 +82,6 @@ function AgentColumn({
           )}
 
           <CodeDiff diff={result.diff} />
-
-          {result.status === "success" && result.previewPort > 0 && (
-            <a
-              href={`http://localhost:${result.previewPort}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              Open Live Preview (:{result.previewPort})
-            </a>
-          )}
         </div>
       )}
     </div>
@@ -98,58 +92,53 @@ export function AgentBattle({
   issue,
   claude,
   codex,
+  claudeActivities,
+  codexActivities,
   isRunning,
 }: AgentBattleProps) {
-  // Determine winner
   const bothDone = claude && codex;
-  const claudeWins =
-    bothDone &&
-    claude.status === "success" &&
-    (codex.status === "failed" || claude.durationMs < codex.durationMs);
-  const codexWins =
-    bothDone &&
-    codex.status === "success" &&
-    (claude.status === "failed" || codex.durationMs < claude.durationMs);
+  const winner = bothDone
+    ? claude.status === "success" && codex.status !== "success"
+      ? "claude"
+      : codex.status === "success" && claude.status !== "success"
+        ? "codex"
+        : claude.status === "success" && codex.status === "success"
+          ? claude.durationMs < codex.durationMs
+            ? "claude"
+            : codex.durationMs < claude.durationMs
+              ? "codex"
+              : null
+          : null
+    : null;
 
   return (
-    <Card className="bg-card border-border animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            <span className="text-muted-foreground font-mono text-sm mr-2">
-              Issue:
-            </span>
-            {issue.description.slice(0, 80)}
-            {issue.description.length > 80 ? "..." : ""}
-          </CardTitle>
-          {bothDone && (
-            <Badge variant="outline" className="text-xs">
-              {claudeWins
-                ? "Claude wins"
-                : codexWins
-                  ? "Codex wins"
-                  : "Tie"}
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-4">
-          <AgentColumn
-            result={claude}
-            agentName="Claude Code"
-            color="bg-purple-500"
-            isRunning={isRunning}
-          />
-          <div className="w-px bg-border shrink-0" />
-          <AgentColumn
-            result={codex}
-            agentName="Codex"
-            color="bg-green-500"
-            isRunning={isRunning}
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="border border-neutral-800 rounded-lg overflow-hidden">
+      <div className="px-4 py-3 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50">
+        <p className="text-sm text-neutral-300 truncate flex-1">
+          {issue.description.slice(0, 100)}
+          {issue.description.length > 100 ? "..." : ""}
+        </p>
+        {winner && (
+          <span className="text-xs font-mono text-neutral-500 ml-3 shrink-0">
+            {winner === "claude" ? "claude wins" : "codex wins"}
+          </span>
+        )}
+      </div>
+      <div className="p-4 flex gap-4">
+        <AgentColumn
+          result={claude}
+          agentName="Claude Code"
+          activities={claudeActivities}
+          isRunning={isRunning}
+        />
+        <div className="w-px bg-neutral-800 shrink-0" />
+        <AgentColumn
+          result={codex}
+          agentName="Codex"
+          activities={codexActivities}
+          isRunning={isRunning}
+        />
+      </div>
+    </div>
   );
 }

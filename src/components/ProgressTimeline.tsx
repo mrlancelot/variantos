@@ -1,12 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ScanEventType } from "@/lib/types";
-
-interface Step {
-  type: ScanEventType;
-  label: string;
-  status: "pending" | "active" | "done";
-}
 
 interface ProgressTimelineProps {
   completedEvents: ScanEventType[];
@@ -14,84 +9,71 @@ interface ProgressTimelineProps {
 }
 
 const STEPS: { type: ScanEventType; label: string }[] = [
-  { type: "cloning", label: "Clone Repository" },
-  { type: "installing", label: "Install Dependencies" },
-  { type: "server-started", label: "Start Dev Server" },
-  { type: "browser-exploring", label: "Browser Agent Exploring" },
-  { type: "issue-found", label: "Issues Identified" },
-  { type: "agents-started", label: "AI Agents Racing" },
-  { type: "scan-complete", label: "Scan Complete" },
+  { type: "cloning", label: "Clone repo" },
+  { type: "installing", label: "Install deps" },
+  { type: "server-started", label: "Setup" },
+  { type: "browser-exploring", label: "Find bugs" },
+  { type: "issue-found", label: "Issues found" },
+  { type: "agents-started", label: "Agents racing" },
+  { type: "scan-complete", label: "Complete" },
 ];
 
 export function ProgressTimeline({
   completedEvents,
   currentEvent,
 }: ProgressTimelineProps) {
-  const steps: Step[] = STEPS.map((step) => {
-    const isDone = completedEvents.includes(step.type);
-    const isActive = currentEvent === step.type;
-    return {
-      ...step,
-      status: isDone ? "done" : isActive ? "active" : "pending",
-    };
-  });
+  const [elapsed, setElapsed] = useState(0);
+  const [startTime] = useState(Date.now());
+  const isComplete = completedEvents.includes("scan-complete");
+
+  useEffect(() => {
+    if (isComplete) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isComplete, startTime]);
+
+  const formatElapsed = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
 
   return (
-    <div className="space-y-1">
-      {steps.map((step, i) => (
-        <div key={step.type} className="flex items-center gap-3">
-          <div className="flex flex-col items-center">
+    <div className="space-y-3">
+      <div className="font-mono text-xs text-neutral-500">
+        {isComplete ? "done" : formatElapsed(elapsed)}
+      </div>
+      <div className="space-y-0.5">
+        {STEPS.map((step) => {
+          const isDone = completedEvents.includes(step.type);
+          const isActive = currentEvent === step.type;
+          // Hide future steps
+          if (!isDone && !isActive) return null;
+
+          return (
             <div
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono border ${
-                step.status === "done"
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : step.status === "active"
-                    ? "border-primary text-primary animate-pulse"
-                    : "border-border text-muted-foreground"
+              key={step.type}
+              className={`flex items-center gap-2 py-1 text-xs font-mono ${
+                isDone
+                  ? "text-neutral-400"
+                  : isActive
+                    ? "text-white"
+                    : "text-neutral-700"
               }`}
             >
-              {step.status === "done" ? (
-                <svg
-                  className="w-3 h-3"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              ) : (
-                i + 1
+              <span className="w-4 text-center text-neutral-600">
+                {isDone ? "#" : isActive ? ">" : " "}
+              </span>
+              <span>{step.label}</span>
+              {isActive && !isDone && (
+                <span className="animate-pulse text-neutral-600">...</span>
               )}
             </div>
-            {i < steps.length - 1 && (
-              <div
-                className={`w-px h-4 ${step.status === "done" ? "bg-primary" : "bg-border"}`}
-              />
-            )}
-          </div>
-          <span
-            className={`text-sm ${
-              step.status === "done"
-                ? "text-foreground"
-                : step.status === "active"
-                  ? "text-foreground font-medium"
-                  : "text-muted-foreground"
-            }`}
-          >
-            {step.label}
-            {step.status === "active" && (
-              <span className="ml-2 text-xs text-muted-foreground animate-pulse">
-                in progress...
-              </span>
-            )}
-          </span>
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }

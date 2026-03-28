@@ -1,9 +1,154 @@
 import { spawn } from "child_process";
-import { AgentResult } from "./types";
+import { AgentResult, AgentActivity, ScanEvent } from "./types";
 import { getDiff, getChangedFiles } from "./sandbox";
+import { createEvent } from "./events";
 
-export interface AgentProgressCallback {
-  (agent: "claude" | "codex", message: string): void;
+type EventPusher = (event: ScanEvent) => void;
+
+function parseClaudeLine(
+  line: string,
+  issueId: string
+): AgentActivity | null {
+  try {
+    const msg = JSON.parse(line);
+
+    // Assistant message with tool_use
+    if (msg.type === "assistant" && msg.message?.content) {
+      for (const block of msg.message.content) {
+        if (block.type === "tool_use") {
+          const tool = block.name;
+          const input = block.input || {};
+
+          if (tool === "Read") {
+            return {
+              agent: "claude",
+              issueId,
+              action: "reading",
+              detail: `Reading ${shortenPath(input.file_path || "")}`,
+              timestamp: Date.now(),
+            };
+          }
+          if (tool === "Edit" || tool === "Write") {
+            return {
+              agent: "claude",
+              issueId,
+              action: "editing",
+              detail: `Editing ${shortenPath(input.file_path || "")}`,
+              timestamp: Date.now(),
+            };
+          }
+          if (tool === "Bash") {
+            return {
+              agent: "claude",
+              issueId,
+              action: "running",
+              detail: `Running command`,
+              timestamp: Date.now(),
+            };
+          }
+          if (tool === "Glob" || tool === "Grep") {
+            return {
+              agent: "claude",
+              issueId,
+              action: "reading",
+              detail: `Searching codebase`,
+              timestamp: Date.now(),
+            };
+          }
+        }
+        if (block.type === "text" && block.text?.length > 0) {
+          return {
+            agent: "claude",
+            issueId,
+            action: "thinking",
+            detail: "Analyzing...",
+            timestamp: Date.now(),
+          };
+        }
+      }
+    }
+  } catch {
+    // Not valid JSON, skip
+  }
+  return null;
+}
+
+function parseCodexLine(
+  line: string,
+  issueId: string
+): AgentActivity | null {
+  try {
+    const msg = JSON.parse(line);
+
+    if (msg.type === "item.completed" && msg.item) {
+      const item = msg.item;
+      if (item.type === "function_call") {
+        const name = item.name || "";
+        if (name === "shell" || name === "bash") {
+          return {
+            agent: "codex",
+            issueId,
+            action: "running",
+            detail: `Running command`,
+            timestamp: Date.now(),
+          };
+        }
+        if (name.includes("read") || name.includes("cat")) {
+          return {
+            agent: "codex",
+            issueId,
+            action: "reading",
+            detail: `Reading file`,
+            timestamp: Date.now(),
+          };
+        }
+        if (name.includes("write") || name.includes("edit") || name.includes("patch")) {
+          return {
+            agent: "codex",
+            issueId,
+            action: "editing",
+            detail: `Editing file`,
+            timestamp: Date.now(),
+          };
+        }
+        return {
+          agent: "codex",
+          issueId,
+          action: "running",
+          detail: `${name}`,
+          timestamp: Date.now(),
+        };
+      }
+      if (item.type === "message" && item.role === "assistant") {
+        return {
+          agent: "codex",
+          issueId,
+          action: "thinking",
+          detail: "Analyzing...",
+          timestamp: Date.now(),
+        };
+      }
+    }
+
+    if (msg.type === "turn.started") {
+      return {
+        agent: "codex",
+        issueId,
+        action: "thinking",
+        detail: "Planning next step...",
+        timestamp: Date.now(),
+      };
+    }
+  } catch {
+    // Not valid JSON, skip
+  }
+  return null;
+}
+
+function shortenPath(fullPath: string): string {
+  const parts = fullPath.split("/");
+  // Return last 2 segments: "src/App.jsx"
+  return parts.slice(-2).join("/");
 }
 
 export function runClaudeCode(
@@ -12,12 +157,22 @@ export function runClaudeCode(
   issueId: string,
   issueDescription: string,
   previewPort: number,
-  onProgress?: AgentProgressCallback
+  pushEvent: EventPusher
 ): Promise<AgentResult> {
   return new Promise((resolve) => {
     const startTime = Date.now();
 
-    onProgress?.("claude", "Starting Claude Code...");
+    pushEvent(
+      createEvent("agent-progress", {
+        activity: {
+          agent: "claude",
+          issueId,
+          action: "thinking",
+          detail: "Starting Claude Code...",
+          timestamp: Date.now(),
+        },
+      })
+    );
 
     const prompt = `You are fixing a bug in a web application. Here is the issue:
 
@@ -28,11 +183,20 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
     const proc = spawn(
       "claude",
       [
-        "-p", prompt,
-        "--output-format", "json",
-        "--max-turns", "15",
+        "-p",
+        prompt,
+        "--output-format",
+        "stream-json",
+        "--max-turns",
+        "15",
         "--dangerously-skip-permissions",
-        "--allowedTools", "Read", "Write", "Edit", "Bash", "Glob", "Grep",
+        "--allowedTools",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
       ],
       {
         cwd,
@@ -41,16 +205,20 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
       }
     );
 
-    let stdout = "";
-    let stderr = "";
+    let buffer = "";
 
     proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-      onProgress?.("claude", "Working on fix...");
-    });
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
 
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const activity = parseClaudeLine(line, issueId);
+        if (activity) {
+          pushEvent(createEvent("agent-progress", { activity }));
+        }
+      }
     });
 
     proc.on("close", async (code) => {
@@ -60,7 +228,7 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
         const diff = await getDiff(originalPath, cwd);
         const filesChanged = await getChangedFiles(originalPath, cwd);
 
-        resolve({
+        const result: AgentResult = {
           agent: "claude",
           issueId,
           status: code === 0 && diff.length > 0 ? "success" : "failed",
@@ -68,7 +236,21 @@ Fix this issue by modifying the appropriate source files. Make minimal, targeted
           filesChanged,
           durationMs,
           previewPort,
-        });
+        };
+
+        pushEvent(
+          createEvent("agent-progress", {
+            activity: {
+              agent: "claude",
+              issueId,
+              action: "done",
+              detail: result.status === "success" ? `Fixed in ${(durationMs / 1000).toFixed(1)}s` : "Failed",
+              timestamp: Date.now(),
+            },
+          })
+        );
+
+        resolve(result);
       } catch {
         resolve({
           agent: "claude",
@@ -102,18 +284,28 @@ export function runCodex(
   issueId: string,
   issueDescription: string,
   previewPort: number,
-  onProgress?: AgentProgressCallback
+  pushEvent: EventPusher
 ): Promise<AgentResult> {
   return new Promise((resolve) => {
     const startTime = Date.now();
 
-    onProgress?.("codex", "Starting Codex...");
+    pushEvent(
+      createEvent("agent-progress", {
+        activity: {
+          agent: "codex",
+          issueId,
+          action: "thinking",
+          detail: "Starting Codex...",
+          timestamp: Date.now(),
+        },
+      })
+    );
 
     const prompt = `Fix this issue in the codebase: ${issueDescription}. Make minimal, targeted changes. Do not refactor unrelated code.`;
 
     const proc = spawn(
       "codex",
-      ["exec", "--full-auto", "--sandbox", "workspace-write", prompt],
+      ["exec", "--json", "--full-auto", "--sandbox", "workspace-write", prompt],
       {
         cwd,
         stdio: "pipe",
@@ -121,16 +313,40 @@ export function runCodex(
       }
     );
 
-    let stdout = "";
-    let stderr = "";
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
 
     proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-      onProgress?.("codex", "Working on fix...");
+      stdoutBuffer += data.toString();
+      const lines = stdoutBuffer.split("\n");
+      stdoutBuffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const activity = parseCodexLine(line, issueId);
+        if (activity) {
+          pushEvent(createEvent("agent-progress", { activity }));
+        }
+      }
     });
 
     proc.stderr.on("data", (data) => {
-      stderr += data.toString();
+      stderrBuffer += data.toString();
+      // Codex writes progress to stderr — parse for activity hints
+      const text = data.toString().toLowerCase();
+      if (text.includes("reading") || text.includes("searching")) {
+        pushEvent(
+          createEvent("agent-progress", {
+            activity: {
+              agent: "codex",
+              issueId,
+              action: "reading",
+              detail: "Scanning codebase...",
+              timestamp: Date.now(),
+            },
+          })
+        );
+      }
     });
 
     proc.on("close", async (code) => {
@@ -140,7 +356,7 @@ export function runCodex(
         const diff = await getDiff(originalPath, cwd);
         const filesChanged = await getChangedFiles(originalPath, cwd);
 
-        resolve({
+        const result: AgentResult = {
           agent: "codex",
           issueId,
           status: code === 0 && diff.length > 0 ? "success" : "failed",
@@ -148,7 +364,21 @@ export function runCodex(
           filesChanged,
           durationMs,
           previewPort,
-        });
+        };
+
+        pushEvent(
+          createEvent("agent-progress", {
+            activity: {
+              agent: "codex",
+              issueId,
+              action: "done",
+              detail: result.status === "success" ? `Fixed in ${(durationMs / 1000).toFixed(1)}s` : "Failed",
+              timestamp: Date.now(),
+            },
+          })
+        );
+
+        resolve(result);
       } catch {
         resolve({
           agent: "codex",
