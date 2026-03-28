@@ -40,11 +40,19 @@ export function BrowserLiveView({ liveUrl, isExploring }: BrowserLiveViewProps) 
             LIVE
           </span>
         )}
+        <a
+          href={liveUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Open in new tab
+        </a>
       </div>
       <iframe
         src={liveUrl}
         className="w-full h-[400px] bg-black"
-        sandbox="allow-scripts allow-same-origin"
+        allow="clipboard-read; clipboard-write"
         title="Browser Use Live View"
       />
     </div>
