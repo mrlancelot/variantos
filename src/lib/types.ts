@@ -25,6 +25,18 @@ export interface AgentActivity {
   timestamp: number;
 }
 
+export interface ApplyResult {
+  branch: string;
+  prUrl?: string;
+  commitSha: string;
+}
+
+export interface VerificationResult {
+  bugFixed: boolean;
+  evidence: string;
+  liveUrl: string;
+}
+
 export type ScanEventType =
   | "cloning"
   | "installing"
@@ -38,6 +50,15 @@ export type ScanEventType =
   | "agent-complete"
   | "preview-ready"
   | "scan-complete"
+  | "apply-copying"
+  | "apply-committing"
+  | "apply-pr"
+  | "apply-building"
+  | "apply-deploying"
+  | "deploy-polling"
+  | "deploy-complete"
+  | "verify-started"
+  | "verify-complete"
   | "error";
 
 export interface ScanEvent {
@@ -49,5 +70,5 @@ export interface ScanEvent {
 export interface ScanRequest {
   repoUrl: string;
   goal?: string;
-  liveUrl?: string; // Optional: public URL for Browser Use (skips tunnel)
+  liveUrl?: string;
 }

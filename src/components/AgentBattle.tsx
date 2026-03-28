@@ -8,6 +8,8 @@ import { AgentResult, AgentActivity, Issue } from "@/lib/types";
 interface AgentBattleProps {
   issue: Issue;
   claude?: AgentResult;
+  onSelectFix?: (issueId: string, agent: "claude" | "codex") => void;
+  applied?: boolean;
   codex?: AgentResult;
   claudeActivities: AgentActivity[];
   codexActivities: AgentActivity[];
@@ -19,11 +21,15 @@ function AgentColumn({
   agentName,
   activities,
   isRunning,
+  onSelect,
+  applied,
 }: {
   result?: AgentResult;
   agentName: string;
   activities: AgentActivity[];
   isRunning: boolean;
+  onSelect?: () => void;
+  applied?: boolean;
 }) {
   const [elapsed, setElapsed] = useState(0);
   const [startTime] = useState(Date.now());
@@ -82,6 +88,18 @@ function AgentColumn({
           )}
 
           <CodeDiff diff={result.diff} />
+
+          {result.status === "success" && onSelect && !applied && (
+            <button
+              onClick={onSelect}
+              className="w-full py-2 text-xs font-medium text-white bg-neutral-800 border border-neutral-700 rounded-lg hover:bg-neutral-700 transition-colors"
+            >
+              Use this fix
+            </button>
+          )}
+          {applied && (
+            <div className="text-xs font-mono text-green-500 py-2">applied</div>
+          )}
         </div>
       )}
     </div>
@@ -95,6 +113,8 @@ export function AgentBattle({
   claudeActivities,
   codexActivities,
   isRunning,
+  onSelectFix,
+  applied,
 }: AgentBattleProps) {
   const bothDone = claude && codex;
   const winner = bothDone
@@ -130,6 +150,8 @@ export function AgentBattle({
           agentName="Claude Code"
           activities={claudeActivities}
           isRunning={isRunning}
+          onSelect={onSelectFix && claude?.status === "success" ? () => onSelectFix(issue.id, "claude") : undefined}
+          applied={applied}
         />
         <div className="w-px bg-neutral-800 shrink-0" />
         <AgentColumn
@@ -137,6 +159,8 @@ export function AgentBattle({
           agentName="Codex"
           activities={codexActivities}
           isRunning={isRunning}
+          onSelect={onSelectFix && codex?.status === "success" ? () => onSelectFix(issue.id, "codex") : undefined}
+          applied={applied}
         />
       </div>
     </div>

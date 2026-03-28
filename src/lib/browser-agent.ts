@@ -69,6 +69,41 @@ Report all bugs, UX issues, and accessibility problems you find. Be specific abo
   return issues;
 }
 
+const VerifySchema = z.object({
+  bugFixed: z.boolean(),
+  evidence: z.string(),
+});
+
+export async function verifyFix(
+  appUrl: string,
+  issue: Issue
+): Promise<{ sessionId: string; liveUrl: string; bugFixed: boolean; evidence: string }> {
+  const client = getClient();
+  const session = await client.sessions.create();
+
+  const prompt = `You are verifying if a bug has been fixed in a web application at ${appUrl}.
+
+The bug was: ${issue.description}
+
+Steps to reproduce the original bug:
+${issue.stepsToReproduce}
+
+Navigate to the app and follow the exact steps above. Determine if the bug is still present or has been fixed. Report what you observe.`;
+
+  const result = await client.run(prompt, {
+    schema: VerifySchema,
+    startUrl: appUrl,
+    sessionId: session.id,
+  });
+
+  return {
+    sessionId: session.id,
+    liveUrl: session.liveUrl || "",
+    bugFixed: result.output?.bugFixed ?? false,
+    evidence: result.output?.evidence ?? "Could not verify",
+  };
+}
+
 // Fallback: hardcoded issues for demo reliability
 export function getHardcodedIssues(): Issue[] {
   return [
